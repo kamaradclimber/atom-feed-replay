@@ -1,0 +1,22 @@
+services:
+  yt-feed-builder:
+    build:
+      context: .
+      dockerfile: Dockerfile.yt-feed-builder
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./config-yt.yaml:/config.yaml:ro
+    command: /config.yaml
+    restart: unless-stopped
+
+  replay-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.replay-server
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./config-replay.yaml:/config.yaml:ro
+    command: /config.yaml
+    restart: unless-stopped

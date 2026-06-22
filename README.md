@@ -11,6 +11,8 @@ YouTube (and many platforms) only expose recent entries in their feeds. If you w
 
 ## How to use
 
+### Local
+
 ```bash
 # Terminal 1 — build the full history feed
 go run ./cmd/yt-feed-builder/ config.yaml
@@ -22,6 +24,35 @@ go run . config.yaml
 Point your feed reader at the replay-server endpoint (default `http://localhost:8080/feeds/<id>`).
 
 See `config.yaml.example` for configuration.
+
+### Container
+
+Two images are published to `ghcr.io/kamaradclimber/atom-feed-replay/`:
+
+| Image | Description |
+|-------|-------------|
+| `replay-server` | Atom feed replay with date smoothing |
+| `yt-feed-builder` | Full-history Atom feed via yt-dlp |
+
+Mount your config file at a known path and pass it as the command:
+
+```bash
+docker run -v ./config.yaml:/etc/afr/config.yaml:ro \
+  ghcr.io/kamaradclimber/atom-feed-replay/replay-server \
+  /etc/afr/config.yaml
+```
+
+Or via docker-compose:
+
+```bash
+docker compose up -d
+```
+
+Edit `docker-compose.yml` to point at your config files.
+
+### CI
+
+On every push to `main` or a `v*` tag, GitHub Actions builds and pushes both images to GHCR. Pull requests are built but not pushed.
 
 ## Disclaimer
 
