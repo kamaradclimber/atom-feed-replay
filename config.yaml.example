@@ -1,0 +1,16 @@
+listen: ":8080"
+# How often to poll each source feed
+refresh_interval: 5m
+
+feeds:
+  - id: tech-talks
+    # Source Atom/RSS feed URL
+    source_url: https://www.youtube.com/feeds/videos.xml?playlist_id=YOUR_PLAYLIST_ID
+    # Path to serve the replayed feed at
+    path: /feeds/tech-talks
+    # When the catchup replay started (or should be considered to have started)
+    catchup_start: 2026-06-01T00:00:00Z
+    # Ideal duration over which to spread the backlog entries
+    catchup_window: 720h  # 30 days
+    # Minimum gap between replayed entries
+    min_interval: 1h

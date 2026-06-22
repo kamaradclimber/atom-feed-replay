@@ -1,0 +1,18 @@
+# Binaries (root-level only to avoid matching cmd/ subdirectories)
+/atom-feed-replay
+/yt-feed-builder
+
+# Config (local overrides)
+config.yaml
+!config.yaml.example
+
+# Data directory
+data/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
