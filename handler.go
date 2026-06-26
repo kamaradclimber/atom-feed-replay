@@ -3,70 +3,27 @@ package main
 import (
 	"log"
 	"net/http"
-	"sync"
 	"time"
 
 	"github.com/user/atom-feed-replay/feed"
 )
 
-type FeedState struct {
-	mu     sync.RWMutex
-	cfg    FeedConfig
-	title  string
-	url    string
-	entries []feed.Entry
-}
-
 type Server struct {
-	states map[string]*FeedState
+	feeds  map[string]FeedConfig
 	client *http.Client
 }
 
 func NewServer(cfg *Config) *Server {
 	s := &Server{
-		states: make(map[string]*FeedState),
+		feeds:  make(map[string]FeedConfig),
 		client: &http.Client{Timeout: 30 * time.Second},
 	}
 
 	for _, fc := range cfg.Feeds {
-		s.states[fc.Path] = &FeedState{
-			cfg: fc,
-		}
+		s.feeds[fc.Path] = fc
 	}
 
 	return s
-}
-
-func (s *Server) StartPolling(interval time.Duration) {
-	for _, state := range s.states {
-		state := state
-		go func() {
-			s.pollFeed(state)
-			ticker := time.NewTicker(interval)
-			defer ticker.Stop()
-			for range ticker.C {
-				s.pollFeed(state)
-			}
-		}()
-	}
-}
-
-func (s *Server) pollFeed(state *FeedState) {
-	result, err := feed.Fetch(s.client, state.cfg.SourceURL)
-	if err != nil {
-		log.Printf("error fetching feed %q: %v", state.cfg.ID, err)
-		return
-	}
-
-	now := time.Now()
-	scheduled := feed.ReplaySchedule(result.Entries, state.cfg.CatchupStart, state.cfg.CatchupWindow, state.cfg.MinInterval, now)
-
-	state.mu.Lock()
-	state.entries = scheduled
-	state.title = result.Title
-	state.mu.Unlock()
-
-	log.Printf("feed %q: %d entries fetched, %d scheduled", state.cfg.ID, len(result.Entries), len(scheduled))
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -75,7 +32,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	state, ok := s.states[r.URL.Path]
+	fc, ok := s.feeds[r.URL.Path]
 	if !ok {
 		http.NotFound(w, r)
 		return
@@ -89,20 +46,29 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	selfURL := scheme + "://" + r.Host + r.URL.Path
 
-	state.mu.RLock()
-	entries := state.entries
-	title := state.title
-	if title == "" {
-		title = state.cfg.ID
+	result, err := feed.Fetch(s.client, fc.SourceURL)
+	if err != nil {
+		log.Printf("error fetching feed %q: %v", fc.ID, err)
+		http.Error(w, "upstream feed unavailable", http.StatusBadGateway)
+		return
 	}
-	state.mu.RUnlock()
+
+	now := time.Now()
+	entries := feed.ReplaySchedule(result.Entries, fc.CatchupStart, fc.CatchupWindow, fc.MinInterval, now)
+
+	title := result.Title
+	if title == "" {
+		title = fc.ID
+	}
 
 	atom, err := feed.Render(entries, title, selfURL)
 	if err != nil {
-		log.Printf("error rendering feed %q: %v", state.cfg.ID, err)
+		log.Printf("error rendering feed %q: %v", fc.ID, err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
+
+	log.Printf("feed %q: %d entries fetched, %d scheduled", fc.ID, len(result.Entries), len(entries))
 
 	w.Header().Set("Content-Type", "application/atom+xml; charset=utf-8")
 	w.WriteHeader(http.StatusOK)

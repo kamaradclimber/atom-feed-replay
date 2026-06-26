@@ -19,7 +19,6 @@ func main() {
 	}
 
 	srv := NewServer(cfg)
-	srv.StartPolling(cfg.RefreshInterval)
 
 	_, port, _ := net.SplitHostPort(cfg.Listen)
 	for _, fc := range cfg.Feeds {
