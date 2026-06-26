@@ -61,7 +61,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		title = fc.ID
 	}
 
-	atom, err := feed.Render(entries, title, selfURL)
+	atom, err := feed.Render(entries, title, selfURL, result.Icon)
 	if err != nil {
 		log.Printf("error rendering feed %q: %v", fc.ID, err)
 		http.Error(w, "internal error", http.StatusInternalServerError)

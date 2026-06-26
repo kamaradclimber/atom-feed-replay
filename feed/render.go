@@ -16,6 +16,7 @@ type AtomFeed struct {
 	ID      string     `xml:"id"`
 	Updated string     `xml:"updated"`
 	Link    AtomLink   `xml:"link"`
+	Icon    string     `xml:"icon,omitempty"`
 	Entries []AtomEntry `xml:"entry"`
 }
 
@@ -40,7 +41,7 @@ type AtomContent struct {
 
 // Render produces an Atom XML string for the given entries, feed title, and
 // feed URL. Each entry uses its ReplayDate as both published and updated.
-func Render(entries []Entry, feedTitle string, feedURL string) (string, error) {
+func Render(entries []Entry, feedTitle string, feedURL string, feedIcon ...string) (string, error) {
 	var latest time.Time
 	atomEntries := make([]AtomEntry, 0, len(entries))
 
@@ -74,7 +75,7 @@ func Render(entries []Entry, feedTitle string, feedURL string) (string, error) {
 		latest = time.Now()
 	}
 
-	feed := AtomFeed{
+	f := AtomFeed{
 		Xmlns:   atomNamespace,
 		Title:   feedTitle,
 		ID:      feedURL,
@@ -85,8 +86,11 @@ func Render(entries []Entry, feedTitle string, feedURL string) (string, error) {
 		},
 		Entries: atomEntries,
 	}
+	if len(feedIcon) > 0 {
+		f.Icon = feedIcon[0]
+	}
 
-	data, err := xml.MarshalIndent(feed, "", "  ")
+	data, err := xml.MarshalIndent(f, "", "  ")
 	if err != nil {
 		return "", fmt.Errorf("marshaling atom feed: %w", err)
 	}

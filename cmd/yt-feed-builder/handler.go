@@ -16,6 +16,7 @@ type SourceState struct {
 	entries []feed.Entry
 	cfg     SourceConfig
 	ready   bool
+	icon    string
 }
 
 type Server struct {
@@ -54,7 +55,7 @@ func (s *Server) StartPolling(cfg *Config) {
 }
 
 func (s *Server) pollSource(state *SourceState) {
-	cache, err := Collect(state.cfg, s.apiKey)
+	cache, icon, err := Collect(state.cfg, s.apiKey)
 	if err != nil {
 		log.Printf("error collecting for %q: %v", state.cfg.ID, err)
 		return
@@ -68,6 +69,7 @@ func (s *Server) pollSource(state *SourceState) {
 
 	state.mu.Lock()
 	state.entries = entries
+	state.icon = icon
 	state.ready = true
 	state.mu.Unlock()
 	log.Printf("source %q: %d entries", state.cfg.ID, len(entries))
@@ -154,9 +156,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	state.mu.RLock()
 	entries := state.entries
 	title := state.cfg.ID
+	icon := state.icon
 	state.mu.RUnlock()
 
-	atom, err := feed.Render(entries, title, selfURL)
+	atom, err := feed.Render(entries, title, selfURL, icon)
 	if err != nil {
 		log.Printf("error rendering feed %q: %v", state.cfg.ID, err)
 		http.Error(w, "internal error", http.StatusInternalServerError)

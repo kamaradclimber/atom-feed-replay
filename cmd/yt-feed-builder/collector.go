@@ -25,6 +25,13 @@ func newYouTubeClient(apiKey string) *youTubeClient {
 
 type channelResponse struct {
 	Items []struct {
+		Snippet struct {
+			Thumbnails struct {
+				Default struct {
+					URL string `json:"url"`
+				} `json:"default"`
+			} `json:"thumbnails"`
+		} `json:"snippet"`
 		ContentDetails struct {
 			RelatedPlaylists struct {
 				Uploads string `json:"uploads"`
@@ -60,37 +67,39 @@ type apiPlaylistItem struct {
 	Description string
 }
 
-func (c *youTubeClient) resolveChannel(handle string) (string, error) {
+func (c *youTubeClient) resolveChannel(handle string) (string, string, error) {
 	u := fmt.Sprintf(
-		"https://www.googleapis.com/youtube/v3/channels?part=contentDetails&forHandle=%s&key=%s",
+		"https://www.googleapis.com/youtube/v3/channels?part=snippet,contentDetails&forHandle=%s&key=%s",
 		url.QueryEscape(handle), c.apiKey,
 	)
 
 	resp, err := c.http.Get(u)
 	if err != nil {
-		return "", fmt.Errorf("calling channels API: %w", err)
+		return "", "", fmt.Errorf("calling channels API: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", c.apiError("channels", resp)
+		return "", "", c.apiError("channels", resp)
 	}
 
 	var ch channelResponse
 	if err := json.NewDecoder(resp.Body).Decode(&ch); err != nil {
-		return "", fmt.Errorf("decoding channels response: %w", err)
+		return "", "", fmt.Errorf("decoding channels response: %w", err)
 	}
 
 	if len(ch.Items) == 0 {
-		return "", fmt.Errorf("channel %q not found", handle)
+		return "", "", fmt.Errorf("channel %q not found", handle)
 	}
 
 	playlistID := ch.Items[0].ContentDetails.RelatedPlaylists.Uploads
 	if playlistID == "" {
-		return "", fmt.Errorf("channel %q has no uploads playlist", handle)
+		return "", "", fmt.Errorf("channel %q has no uploads playlist", handle)
 	}
 
-	return playlistID, nil
+	icon := ch.Items[0].Snippet.Thumbnails.Default.URL
+
+	return playlistID, icon, nil
 }
 
 func (c *youTubeClient) listPlaylistItems(playlistID string) ([]apiPlaylistItem, error) {
@@ -153,23 +162,23 @@ func (c *youTubeClient) apiError(api string, resp *http.Response) error {
 	return fmt.Errorf("%s API: HTTP %d: %s", api, resp.StatusCode, strings.TrimSpace(string(body)))
 }
 
-// resolveSource extracts the playlist ID from a source config.
-func resolveSource(cfg SourceConfig, client *youTubeClient) (string, error) {
+// resolveSource extracts the playlist ID and channel icon from a source config.
+func resolveSource(cfg SourceConfig, client *youTubeClient) (string, string, error) {
 	switch cfg.Type {
 	case "channel":
 		handle := extractHandle(cfg.Source)
 		if handle == "" {
-			return "", fmt.Errorf("could not extract handle from %q", cfg.Source)
+			return "", "", fmt.Errorf("could not extract handle from %q", cfg.Source)
 		}
 		return client.resolveChannel(handle)
 	case "playlist":
 		pid := extractPlaylistID(cfg.Source)
 		if pid == "" {
-			return "", fmt.Errorf("could not extract playlist ID from %q", cfg.Source)
+			return "", "", fmt.Errorf("could not extract playlist ID from %q", cfg.Source)
 		}
-		return pid, nil
+		return pid, "", nil
 	default:
-		return "", fmt.Errorf("unknown source type: %s", cfg.Type)
+		return "", "", fmt.Errorf("unknown source type: %s", cfg.Type)
 	}
 }
 
@@ -205,16 +214,17 @@ func extractPlaylistID(s string) string {
 }
 
 // Collect fetches all videos from a YouTube source via the Data API.
-func Collect(cfg SourceConfig, apiKey string) (map[string]CacheEntry, error) {
+// Returns the cache entries and the channel icon URL.
+func Collect(cfg SourceConfig, apiKey string) (map[string]CacheEntry, string, error) {
 	client := newYouTubeClient(apiKey)
-	playlistID, err := resolveSource(cfg, client)
+	playlistID, icon, err := resolveSource(cfg, client)
 	if err != nil {
-		return nil, fmt.Errorf("resolving source: %w", err)
+		return nil, "", fmt.Errorf("resolving source: %w", err)
 	}
 
 	items, err := client.listPlaylistItems(playlistID)
 	if err != nil {
-		return nil, fmt.Errorf("listing playlist items: %w", err)
+		return nil, "", fmt.Errorf("listing playlist items: %w", err)
 	}
 
 	log.Printf("fetched %d items from playlist %s", len(items), playlistID)
@@ -228,5 +238,5 @@ func Collect(cfg SourceConfig, apiKey string) (map[string]CacheEntry, error) {
 			Description: item.Description,
 		}
 	}
-	return cache, nil
+	return cache, icon, nil
 }

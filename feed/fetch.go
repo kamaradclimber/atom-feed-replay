@@ -1,8 +1,12 @@
 package feed
 
 import (
+	"bytes"
+	"encoding/xml"
 	"fmt"
+	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/mmcdole/gofeed"
@@ -11,6 +15,7 @@ import (
 type FetchResult struct {
 	Title   string
 	Entries []Entry
+	Icon    string
 }
 
 // Fetch retrieves and parses an Atom/RSS feed from the given URL.
@@ -25,14 +30,22 @@ func Fetch(client *http.Client, url string) (*FetchResult, error) {
 		return nil, fmt.Errorf("fetching %s: status %d", url, resp.StatusCode)
 	}
 
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", url, err)
+	}
+
+	icon := extractFeedIcon(body)
+
 	fp := gofeed.NewParser()
-	parsed, err := fp.Parse(resp.Body)
+	parsed, err := fp.Parse(strings.NewReader(string(body)))
 	if err != nil {
 		return nil, fmt.Errorf("parsing %s: %w", url, err)
 	}
 
 	result := &FetchResult{
 		Title: parsed.Title,
+		Icon:  icon,
 	}
 
 	entries := make([]Entry, 0, len(parsed.Items))
@@ -75,4 +88,25 @@ func Fetch(client *http.Client, url string) (*FetchResult, error) {
 
 	result.Entries = entries
 	return result, nil
+}
+
+func extractFeedIcon(body []byte) string {
+	decoder := xml.NewDecoder(bytes.NewReader(body))
+	for {
+		token, err := decoder.Token()
+		if err != nil {
+			break
+		}
+		start, ok := token.(xml.StartElement)
+		if !ok {
+			continue
+		}
+		if start.Name.Local == "icon" {
+			var icon string
+			if err := decoder.DecodeElement(&icon, &start); err == nil {
+				return icon
+			}
+		}
+	}
+	return ""
 }
