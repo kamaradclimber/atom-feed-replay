@@ -6,7 +6,7 @@ Takes an Atom feed and exposes a new Atom feed that replays entries with smoothe
 
 YouTube (and many platforms) only expose recent entries in their feeds. If you want to publish an entire back-catalog to subscribers at a consistent cadence rather than all at once, this toolchain bridges the gap:
 
-1. **yt-feed-builder** — uses `yt-dlp` to enumerate every video in a channel/playlist and serves a complete Atom feed over HTTP.
+1. **yt-feed-builder** — uses the YouTube Data API v3 to enumerate every video in a channel/playlist and serves a complete Atom feed over HTTP.
 2. **replay-server** — consumes that feed, computes smoothed publication dates, and serves a new Atom feed where entries appear at a controlled rate until caught up to real-time.
 
 ## How to use
@@ -32,7 +32,7 @@ Two images are published to `ghcr.io/kamaradclimber/atom-feed-replay/`:
 | Image | Description |
 |-------|-------------|
 | `replay-server` | Atom feed replay with date smoothing |
-| `yt-feed-builder` | Full-history Atom feed via yt-dlp |
+| `yt-feed-builder` | Full-history Atom feed via YouTube Data API v3 |
 
 Mount your config file at a known path and pass it as the command:
 
