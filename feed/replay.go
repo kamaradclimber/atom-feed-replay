@@ -59,7 +59,7 @@ func ReplaySchedule(entries []Entry, catchupStart time.Time, window time.Duratio
 			if n == 1 {
 				offset = 0
 			} else {
-				offset = total * time.Duration(i) / time.Duration(n-1)
+				offset = time.Duration(float64(total) * float64(i) / float64(n-1))
 			}
 			backlog[i].ReplayDate = catchupStart.Add(offset)
 		}

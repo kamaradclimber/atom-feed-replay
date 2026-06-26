@@ -1,6 +1,7 @@
 package feed
 
 import (
+	"fmt"
 	"testing"
 	"time"
 )
@@ -428,5 +429,58 @@ func TestEntriesWithoutPublishedDates(t *testing.T) {
 	}
 	if !result[0].ReplayDate.Equal(start) {
 		t.Fatalf("expected zero-time entry at start, got %v", result[0].ReplayDate)
+	}
+}
+
+func TestManyOldEntriesNoOverflow(t *testing.T) {
+	start := mustTime("2026-06-22T00:00:00Z")
+	window := 3600 * time.Hour
+	minInterval := 96 * time.Hour
+	now := mustTime("2026-06-28T00:00:00Z")
+
+	// 300 entries spanning 30+ years — enough to trigger integer overflow
+	// in the old formula total * i / (n-1) where total = max(window, n*minInterval) = 28800h
+	base := mustTime("1995-01-01T00:00:00Z")
+	entries := make([]Entry, 300)
+	for i := range entries {
+		entries[i] = Entry{
+			ID:        fmt.Sprintf("vid-%d", i),
+			Published: base.Add(time.Duration(i) * 720 * time.Hour),
+		}
+	}
+
+	result := ReplaySchedule(entries, start, window, minInterval, now)
+
+	// Property 1: all replay dates are >= catchup_start (no negative overflow)
+	for _, e := range result {
+		if e.ReplayDate.Before(start) {
+			t.Fatalf("entry %q has replay date %v before catchup_start %v", e.ID, e.ReplayDate, start)
+		}
+	}
+
+	// Property 2: all visible entries have replay date <= now
+	for _, e := range result {
+		if e.ReplayDate.After(now) {
+			t.Fatalf("entry %q has replay date %v after now %v", e.ID, e.ReplayDate, now)
+		}
+	}
+
+	// Property 3: results are sorted by replay date ascending with positive spacing
+	for i := 1; i < len(result); i++ {
+		if !result[i].ReplayDate.After(result[i-1].ReplayDate) {
+			t.Fatalf("entries not strictly increasing by replay date: %v then %v",
+				result[i-1].ReplayDate, result[i].ReplayDate)
+		}
+	}
+
+	// Property 4: backlog entries that haven't been released yet don't appear
+	// (at least one entry should be filtered out since we have 300 entries and only ~1.5 spacing periods fit in now-start)
+	if len(result) == 300 {
+		t.Fatal("all entries visible at once — replay filtering may be broken")
+	}
+
+	// Property 5: at least the first backlog entry is visible (catchup_start is before now)
+	if len(result) == 0 {
+		t.Fatal("no entries visible — expected at least the first backlog entry at catchup_start")
 	}
 }
