@@ -51,6 +51,7 @@ func TestHandlerServesAtom(t *testing.T) {
 	srv.states["/feeds/test"].entries = []feed.Entry{
 		{ID: "vid1", Title: "Test Video", Link: "https://youtube.com/watch?v=vid1", ReplayDate: now},
 	}
+	srv.states["/feeds/test"].ready = true
 
 	req := httptest.NewRequest(http.MethodGet, "/feeds/test", nil)
 	w := httptest.NewRecorder()
@@ -85,6 +86,8 @@ func TestHandlerMultipleSources(t *testing.T) {
 	srv.states["/feeds/a"].entries = []feed.Entry{
 		{ID: "a1", Title: "A1", ReplayDate: now},
 	}
+	srv.states["/feeds/a"].ready = true
+	// Feed b stays not ready → should return 503
 
 	req := httptest.NewRequest(http.MethodGet, "/feeds/a", nil)
 	w := httptest.NewRecorder()
@@ -96,7 +99,7 @@ func TestHandlerMultipleSources(t *testing.T) {
 	req = httptest.NewRequest(http.MethodGet, "/feeds/b", nil)
 	w = httptest.NewRecorder()
 	srv.ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Fatalf("feed b expected 200, got %d", w.Code)
+	if w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("feed b expected 503, got %d", w.Code)
 	}
 }

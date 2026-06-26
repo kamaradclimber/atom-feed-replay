@@ -7,6 +7,7 @@ import (
 )
 
 func TestLoadConfigBasic(t *testing.T) {
+	t.Setenv("YOUTUBE_API_KEY", "test-key-123")
 	content := `
 listen: ":9090"
 poll_interval: 5m
@@ -42,6 +43,7 @@ sources:
 }
 
 func TestLoadConfigDefaults(t *testing.T) {
+	t.Setenv("YOUTUBE_API_KEY", "test-key-456")
 	content := `
 sources:
   - id: test
@@ -128,6 +130,70 @@ func TestLoadConfigNoSources(t *testing.T) {
 	_, err := LoadConfig(f.Name())
 	if err == nil {
 		t.Fatal("expected error for no sources")
+	}
+}
+
+func TestLoadConfigAPIKeyFromConfigFile(t *testing.T) {
+	keyFile := writeTempConfig(t, "file-based-key\n")
+	defer os.Remove(keyFile.Name())
+
+	cfgYAML := `
+api_key_file: ` + keyFile.Name() + `
+sources:
+  - id: test
+    source: https://www.youtube.com/@test
+    type: channel
+    path: /feeds/test
+`
+	f := writeTempConfig(t, cfgYAML)
+	defer os.Remove(f.Name())
+
+	cfg, err := LoadConfig(f.Name())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if cfg.APIKey != "file-based-key" {
+		t.Fatalf("expected file-based-key, got %q", cfg.APIKey)
+	}
+}
+
+func TestLoadConfigAPIKeyFromEnv(t *testing.T) {
+	t.Setenv("YOUTUBE_API_KEY", "env-key")
+	content := `
+sources:
+  - id: test
+    source: https://www.youtube.com/@test
+    type: channel
+    path: /feeds/test
+`
+	f := writeTempConfig(t, content)
+	defer os.Remove(f.Name())
+
+	cfg, err := LoadConfig(f.Name())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if cfg.APIKey != "env-key" {
+		t.Fatalf("expected env-key, got %q", cfg.APIKey)
+	}
+}
+
+func TestLoadConfigMissingAPIKey(t *testing.T) {
+	content := `
+sources:
+  - id: test
+    source: https://www.youtube.com/@test
+    type: channel
+    path: /feeds/test
+`
+	f := writeTempConfig(t, content)
+	defer os.Remove(f.Name())
+
+	_, err := LoadConfig(f.Name())
+	if err == nil {
+		t.Fatal("expected error for missing API key")
 	}
 }
 

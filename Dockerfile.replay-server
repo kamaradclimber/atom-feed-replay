@@ -5,7 +5,7 @@ RUN go mod download
 COPY . .
 RUN go build -o /replay-server .
 
-FROM alpine:3.20
+FROM alpine:latest
 RUN apk add --no-cache ca-certificates tzdata
 COPY --from=builder /replay-server /replay-server
 EXPOSE 8080

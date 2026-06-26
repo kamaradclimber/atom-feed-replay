@@ -5,6 +5,16 @@
 # Config (local overrides)
 config.yaml
 !config.yaml.example
+config-yt.yaml
+config-replay.yaml
+
+# API key files
+youtube-api.key
+*.key
+
+# Data directories
+data/
+yt-data/
 
 # Data directory
 data/
