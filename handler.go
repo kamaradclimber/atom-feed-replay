@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/user/atom-feed-replay/feed"
@@ -70,7 +71,16 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("feed %q: %d entries fetched, %d scheduled", fc.ID, len(result.Entries), len(entries))
 
-	w.Header().Set("Content-Type", "application/atom+xml; charset=utf-8")
+	ct := "application/atom+xml; charset=utf-8"
+	if isBrowserRequest(r) {
+		ct = "application/xml; charset=utf-8"
+	}
+	w.Header().Set("Content-Type", ct)
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(atom))
+}
+
+func isBrowserRequest(r *http.Request) bool {
+	accept := r.Header.Get("Accept")
+	return strings.Contains(accept, "text/html") || strings.Contains(accept, "application/xhtml+xml")
 }

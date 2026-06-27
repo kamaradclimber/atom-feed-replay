@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -166,7 +167,16 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/atom+xml; charset=utf-8")
+	ct := "application/atom+xml; charset=utf-8"
+	if isBrowserRequest(r) {
+		ct = "application/xml; charset=utf-8"
+	}
+	w.Header().Set("Content-Type", ct)
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(atom))
+}
+
+func isBrowserRequest(r *http.Request) bool {
+	accept := r.Header.Get("Accept")
+	return strings.Contains(accept, "text/html") || strings.Contains(accept, "application/xhtml+xml")
 }
